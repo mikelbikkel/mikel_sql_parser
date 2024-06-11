@@ -37,6 +37,7 @@ object frmMain: TfrmMain
     Height = 105
     Lines.Strings = (
       'memoBin')
+    ScrollBars = ssBoth
     TabOrder = 2
   end
   object dlgOpenText: TOpenTextFileDialog

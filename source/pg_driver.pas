@@ -29,12 +29,17 @@ type
     FMessageEvent: TPgMessageEvent;
     procedure ExamineLine(const no: Integer; const line: string);
     procedure DoMessageEvent(const msg: string);
+
+    function ByteLine(const no: Integer; const line: string): string;
   public
     constructor Create;
     destructor Destroy;
+
     procedure ProcessFile(const fname: string; const enc: TEncoding);
     property OnMessageEvent: TPgMessageEvent read FMessageEvent
       write FMessageEvent;
+
+    function ByteShowFile(const fname: string; const enc: TEncoding): TStrings;
   end;
 
 implementation
@@ -42,6 +47,53 @@ implementation
 uses System.Character, System.IOUtils;
 
 { TPgDriver }
+
+function TPgDriver.ByteLine(const no: Integer; const line: string): string;
+var
+  ar: TArray<Char>;
+  bt: TBytes;
+  sb: TStringBuilder;
+begin
+  ar := line.ToCharArray();
+  sb := TStringBuilder.Create;
+  sb.Append(no);
+  sb.Append(':');
+  for var c: Char in ar do
+  begin
+    bt := TEncoding.UTF8.GetBytes(c);
+    for var b: Byte in bt do
+      sb.AppendFormat(' 0x%.2x', [b]);
+    sb.Append(' -');
+  end;
+  Result := sb.ToString;
+  sb.Free;
+end;
+
+function TPgDriver.ByteShowFile(const fname: string; const enc: TEncoding)
+  : TStrings;
+var
+  rdr: TStreamReader;
+  ln: string;
+  cnt: Integer;
+  lst: TStringList;
+  s: string;
+begin
+  rdr := nil;
+  cnt := 0;
+  lst := TStringList.Create;
+  rdr := TStreamReader.Create(fname, enc);
+  while not rdr.EndOfStream do
+  begin
+    Inc(cnt);
+    ln := rdr.ReadLine;
+    lst.Add(IntToStr(cnt) + ': ' + ln);
+    s := ByteLine(cnt, ln);
+    lst.Add(s);
+  end;
+  rdr.Close;
+  rdr.Free;
+  Result := lst;
+end;
 
 constructor TPgDriver.Create;
 begin

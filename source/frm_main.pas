@@ -38,7 +38,8 @@ type
 
     procedure HandleDriverMsg(const msg: string);
   private
-    procedure PrintBytes(const fname: string);
+    function getFileEncoding: TEncoding;
+    // procedure PrintBytes(const fname: string; const enc: TEncoding);
   public
     { Public declarations }
   end;
@@ -55,33 +56,24 @@ uses System.Character, System.IOUtils, pg_driver;
 procedure TfrmMain.actOpenExecute(Sender: TObject);
 var
   fname: string;
-  enc: string;
-  idx: Integer;
   eb: TEncoding;
+  lst: TStrings;
 begin
   eb := nil;
-  idx := -1;
+  lst := nil;
   if dlgOpenText.Execute then
   begin
     memoBin.Clear;
     memoFile.Clear;
     fname := dlgOpenText.FileName;
-    // PrintBytes(fname);
-    idx := dlgOpenText.EncodingIndex;
-    enc := dlgOpenText.Encodings[idx];
-    if enc = 'ASCII' then
-      eb := TEncoding.ASCII
-    else if enc = 'ANSI' then
-      eb := TEncoding.ANSI
-    else if enc = 'UTF-7' then
-      eb := TEncoding.UTF7
-    else if enc = 'UTF-8' then
-      eb := TEncoding.UTF8;
-
+    eb := getFileEncoding;
     var
       drvr: TPgDriver := TPgDriver.Create;
     drvr.OnMessageEvent := HandleDriverMsg;
     drvr.ProcessFile(fname, eb);
+    lst := drvr.ByteShowFile(fname, eb);
+    memoBin.Lines := lst;
+    lst.Free;
     drvr.Free;
   end;
 end;
@@ -91,19 +83,39 @@ begin
   ReportMemoryLeaksOnShutdown := true;
 end;
 
+function TfrmMain.getFileEncoding: TEncoding;
+var
+  enc: string;
+  idx: Integer;
+begin
+  idx := dlgOpenText.EncodingIndex;
+  enc := dlgOpenText.Encodings[idx];
+  if enc = 'ASCII' then
+    Result := TEncoding.ASCII
+  else if enc = 'ANSI' then
+    Result := TEncoding.ANSI
+  else if enc = 'UTF-7' then
+    Result := TEncoding.UTF7
+  else if enc = 'UTF-8' then
+    Result := TEncoding.UTF8
+  else
+    raise Exception.Create('Unknown encoding: ' + enc);
+end;
+
 procedure TfrmMain.HandleDriverMsg(const msg: string);
 begin
   memoFile.Lines.Add(msg);
 end;
 
-procedure TfrmMain.PrintBytes(const fname: string);
-var
+{
+  procedure TfrmMain.PrintBytes(const fname: string; const enc: TEncoding);
+  var
   b: TBytes;
   bt: Byte;
-begin
+  begin
   b := TFile.ReadAllBytes(fname);
   for bt in b do
-    memoBin.Lines.Append(IntToHex(bt) + ' ');
-end;
-
+  memoBin.Lines.Append(IntToHex(bt) + ' ');
+  end;
+}
 end.
