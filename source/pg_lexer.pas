@@ -37,10 +37,11 @@ type
   LexerState = (lsStart, lsCollect);
 
   // TODO: var???
-  TLexemeEvent = procedure( { var } lex: string { TLexeme } ) of object;
+  TLexemeEvent = procedure( { var } lex: TLexeme) of object;
 
   TLexer = class
   private
+    FLexeme: TLexeme;
     FLexemeFound: TLexemeEvent;
     FLine: integer;
     FColumn: integer;
@@ -48,7 +49,7 @@ type
     function StartProcessChar(const c: Char): LexerState;
     function CollectProcessChar(const c: Char): LexerState;
     // Virtual and dynamic methods can be overridden in descendent classes.
-    procedure DoLexemeFound( { var } lex: string { TLexeme } );
+    procedure DoLexemeFound;
 
   public
     constructor Create;
@@ -87,7 +88,6 @@ begin
   FColumn := 1;
   FState := lsStart;
 end;
-{$ENDREGION}
 
 procedure TLexer.NextChar(const c: Char);
 begin
@@ -98,12 +98,13 @@ begin
     lsCollect:
       FState := CollectProcessChar(c);
   else
-    ;
+    raise Exception.Create('unknown state');
   end;
 end;
 
 procedure TLexer.NextLine;
 begin
+  // TODO: return lexeme if collecting. Reset state to Start-state.
   Inc(FLine);
   FColumn := 1;
 end;
@@ -114,16 +115,18 @@ begin
     raise Exception.Create('Not in state: Start');
 
   if IsWhiteSpace(c) then
-    Exit(lsStart) // no-op
-  else // if IsLetter(c) then
-    // Create a new lexeme
-    FState := lsCollect;
+    Exit(lsStart); // no-op
+
+  // if IsLetter(c) then
+  FLexeme := TLexeme.Create(FLine, FColumn);
+  FLexeme.Add(c);
+  Result := lsCollect;
 end;
 
-procedure TLexer.DoLexemeFound( { var } lex: string { TLexeme } );
+procedure TLexer.DoLexemeFound;
 begin
   if Assigned(FLexemeFound) then
-    FLexemeFound(lex);
+    FLexemeFound(FLexeme);
 end;
 
 function TLexer.CollectProcessChar(const c: Char): LexerState;
@@ -132,18 +135,16 @@ begin
     raise Exception.Create('Not in state: Collect');
 
   if IsWhiteSpace(c) then
-  begin
-    // finish lexeme
-    DoLexemeFound('pruttel');
+  begin // Signal we found a lexeme and return to start state.
+    DoLexemeFound;
     Exit(lsStart);
-  end // ;
-  else
-  // if IsLetter(c) then
-  begin
-    // Add to lexeme
-    Exit(lsCollect);
-  end;
+  end; // ;
 
+  // Add character to the lexeme and continue if IsLetter(c) then
+  FLexeme.Add(c);
+  Result := lsCollect;
 end;
+
+{$ENDREGION}
 
 end.
