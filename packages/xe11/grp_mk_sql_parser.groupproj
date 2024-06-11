@@ -1,0 +1,36 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{0DD3E73E-0F32-4DF4-BFA2-A75604C240D6}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="mk_sql_parser.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="mk_sql_parser">
+        <MSBuild Projects="mk_sql_parser.dproj"/>
+    </Target>
+    <Target Name="mk_sql_parser:Clean">
+        <MSBuild Projects="mk_sql_parser.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="mk_sql_parser:Make">
+        <MSBuild Projects="mk_sql_parser.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="mk_sql_parser"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="mk_sql_parser:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="mk_sql_parser:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
