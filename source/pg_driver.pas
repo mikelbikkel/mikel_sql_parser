@@ -19,7 +19,7 @@ unit pg_driver;
 
 interface
 
-uses System.SysUtils, System.Classes;
+uses System.SysUtils, System.Classes, pg_lexer;
 
 type
   TPgMessageEvent = procedure(const msg: string) of object;
@@ -35,6 +35,7 @@ type
     constructor Create;
     destructor Destroy;
 
+    procedure ProcessFile2(const fname: string; const enc: TEncoding);
     procedure ProcessFile(const fname: string; const enc: TEncoding);
     property OnMessageEvent: TPgMessageEvent read FMessageEvent
       write FMessageEvent;
@@ -175,6 +176,28 @@ begin
   rdr.Close;
   rdr.Free;
 
+end;
+
+procedure TPgDriver.ProcessFile2(const fname: string; const enc: TEncoding);
+var
+  lxr: TLexer;
+  tok: TToken;
+begin
+  lxr := nil;
+  tok := nil;
+  try
+    lxr := TLexer.Create(fname, enc);
+    tok := lxr.GetNextToken;
+    while tok.TokenType <> ttEOF do
+    begin
+      tok.Free;
+      tok := lxr.GetNextToken;
+    end;
+    tok.Free;
+  finally
+    if Assigned(lxr) then
+      lxr.Free;
+  end;
 end;
 
 end.

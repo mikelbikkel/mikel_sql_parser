@@ -19,60 +19,71 @@ unit pg_lexer;
 
 interface
 
+uses System.SysUtils, System.Classes;
+
 type
-  TLexeme = class
+  TTokenType = (ttEOF, ttEOL);
+
+  TToken = class
   private
     FLine: integer;
     FColumn: integer;
     FText: string;
+    FType: TTokenType;
 
   public
     constructor Create(const ln, col: integer);
     property Line: integer read FLine;
     property Column: integer read FColumn;
     property Text: string read FText;
+    property TokenType: TTokenType read FType;
+
     procedure Add(const c: Char);
   end;
 
   LexerState = (lsStart, lsCollect);
 
   // TODO: var???
-  TLexemeEvent = procedure( { var } lex: TLexeme) of object;
+  TTokenEvent = procedure( { var } lex: TToken) of object;
 
   TLexer = class
   private
-    FLexeme: TLexeme;
-    FLexemeFound: TLexemeEvent;
+    FToken: TToken;
+    FTokenFound: TTokenEvent;
+    FReader: TStreamReader;
     FLine: integer;
     FColumn: integer;
     FState: LexerState;
     function StartProcessChar(const c: Char): LexerState;
     function CollectProcessChar(const c: Char): LexerState;
     // Virtual and dynamic methods can be overridden in descendent classes.
-    procedure DoLexemeFound;
+    procedure DoTokenFound;
 
   public
-    constructor Create;
+    constructor Create(const fname: string; const enc: TEncoding);
+    destructor Destroy; override;
     procedure NextChar(const c: Char);
     procedure NextLine;
 
-    property OnLexemeFound: TLexemeEvent read FLexemeFound write FLexemeFound;
+    function GetNextToken(): TToken;
+
+    property OnTokenFound: TTokenEvent read FTokenFound write FTokenFound;
   end;
 
 implementation
 
-uses System.Character, System.SysUtils;
+uses System.Character;
 
 { ----------------------------------------------------------------------------- }
-{ TLexeme }
-{$REGION TLexeme }
+{ TToken }
+{$REGION TToken }
 
-procedure TLexeme.Add(const c: Char);
+procedure TToken.Add(const c: Char);
 begin
   FText := FText + c;
 end;
 
-constructor TLexeme.Create(const ln, col: integer);
+constructor TToken.Create(const ln, col: integer);
 begin
   FLine := ln;
   FColumn := col;
@@ -82,10 +93,11 @@ end;
 { TLexer }
 {$REGION TLexer }
 
-constructor TLexer.Create;
+constructor TLexer.Create(const fname: string; const enc: TEncoding);
 begin
+  FReader := TStreamReader.Create(fname, enc);
   FLine := 1;
-  FColumn := 1;
+  FColumn := 0;
   FState := lsStart;
 end;
 
@@ -118,15 +130,60 @@ begin
     Exit(lsStart); // no-op
 
   // if IsLetter(c) then
-  FLexeme := TLexeme.Create(FLine, FColumn);
-  FLexeme.Add(c);
+  FToken := TToken.Create(FLine, FColumn);
+  FToken.Add(c);
   Result := lsCollect;
 end;
 
-procedure TLexer.DoLexemeFound;
+destructor TLexer.Destroy;
 begin
-  if Assigned(FLexemeFound) then
-    FLexemeFound(FLexeme);
+  if Assigned(FReader) then
+  begin
+    FReader.Close;
+    FReader.Free;
+    FReader := nil;
+  end;
+
+  inherited;
+end;
+
+procedure TLexer.DoTokenFound;
+begin
+  if Assigned(FTokenFound) then
+    FTokenFound(FToken);
+end;
+
+function TLexer.GetNextToken: TToken;
+var
+  i: integer;
+  iNext: integer;
+  c: Char;
+  t: TToken;
+begin
+
+  while FReader.Peek >= 0 do
+  begin
+    i := FReader.Read;
+    c := Chr(i);
+    Inc(FColumn);
+    if (i = $000D) or (i = $000A) or (i = $02AA) then
+    begin
+      // Handle EOL.
+      // $02AA is Unicode LS (LineSeparator), code point: U+02AA
+      Result := TToken.Create(FLine, FColumn);
+      Result.FType := ttEOL;
+      Inc(FLine);
+      FColumn := 0;
+      iNext := FReader.Peek;
+      if iNext = $000A then
+        FReader.Read;
+      Exit(Result);
+    end;
+
+  end;
+
+  Result := TToken.Create(FLine, FColumn);
+  Result.FType := ttEOF;
 end;
 
 function TLexer.CollectProcessChar(const c: Char): LexerState;
@@ -136,12 +193,12 @@ begin
 
   if IsWhiteSpace(c) then
   begin // Signal we found a lexeme and return to start state.
-    DoLexemeFound;
+    DoTokenFound;
     Exit(lsStart);
   end; // ;
 
   // Add character to the lexeme and continue if IsLetter(c) then
-  FLexeme.Add(c);
+  FToken.Add(c);
   Result := lsCollect;
 end;
 

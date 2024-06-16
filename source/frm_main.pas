@@ -71,9 +71,13 @@ begin
       drvr: TPgDriver := TPgDriver.Create;
     drvr.OnMessageEvent := HandleDriverMsg;
     drvr.ProcessFile(fname, eb);
+
     lst := drvr.ByteShowFile(fname, eb);
     memoBin.Lines := lst;
     lst.Free;
+
+    drvr.ProcessFile2(fname, eb);
+
     drvr.Free;
   end;
 end;
