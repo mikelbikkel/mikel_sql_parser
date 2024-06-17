@@ -22,7 +22,7 @@ interface
 uses System.SysUtils, System.Classes, System.Generics.Collections;
 
 type
-  TTokenType = (ttUnkown, ttEOF, ttEOL, ttID);
+  TTokenType = (ttUnkown, ttEOF, ttEOL, ttID, ttNumber);
 
   TToken = class
   private
@@ -39,6 +39,7 @@ type
     property TokenType: TTokenType read FType;
 
     procedure Add(const c: Char);
+    // TODO: ToString
   end;
 
   TTokenManager = class
@@ -110,7 +111,7 @@ begin
   inherited;
 end;
 
-// TODO: Peek and Read...
+// TODO: switch to FSM?? This gets too complicated.
 procedure TLexer.GetNextToken(var tok: TToken);
 var
   i: integer;
@@ -121,11 +122,15 @@ begin
   state := lsStart;
   while FReader.Peek >= 0 do
   begin
-    i := FReader.Read;
+    i := FReader.Peek;
     c := Chr(i);
-    Inc(FColumn);
     if (i = $000D) or (i = $000A) or (i = $02AA) then
     begin
+      if state = lsCollect then
+      begin
+        Exit;
+      end;
+      FReader.Read;
       // Handle EOL. CRLF, CR, LF and LS.
       // $02AA is Unicode LS (LineSeparator), code point: U+02AA
       tok.FLine := FLine;
@@ -145,6 +150,7 @@ begin
       // Zs category, or a tab ( U+0009 ), CR, LF or FF ( U+000C )
       if state = lsCollect then
         Exit;
+      FReader.Read;
     end
     else if c.IsLetter then
     begin
@@ -155,7 +161,43 @@ begin
         tok.FType := ttID;
         state := lsCollect;
       end;
+      if state = lsCollect then
+        if tok.FType = ttID then
+        begin
+          FReader.Read;
+          tok.Add(c);
+        end
+        else
+          Exit;
+    end
+    else if c.IsDigit then
+    begin
+      if state = lsStart then
+      begin
+        tok.FLine := FLine;
+        tok.FColumn := FColumn;
+        tok.FType := ttNumber;
+        state := lsCollect;
+      end;
+      if state = lsCollect then
+        if tok.FType = ttNumber then
+        begin
+          FReader.Read;
+          tok.Add(c);
+        end
+        else
+          Exit;
+    end
+    else
+    begin
+      if state = lsCollect then
+        Exit;
+      FReader.Read;
+      tok.FLine := FLine;
+      tok.FColumn := FColumn;
+      tok.FType := ttUnkown;
       tok.Add(c);
+      Exit;
     end;
   end;
 

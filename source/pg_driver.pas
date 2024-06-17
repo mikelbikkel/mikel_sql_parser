@@ -23,12 +23,15 @@ uses System.SysUtils, System.Classes, pg_lexer;
 
 type
   TPgMessageEvent = procedure(const msg: string) of object;
+  TPTokenEvent = procedure(const msg: string) of object;
 
   TPgDriver = class
   private
     FMessageEvent: TPgMessageEvent;
+    FTokenEvent: TPTokenEvent;
     procedure ExamineLine(const no: Integer; const line: string);
     procedure DoMessageEvent(const msg: string);
+    procedure DoTokenEvent(const msg: string);
 
     function ByteLine(const no: Integer; const line: string): string;
   public
@@ -39,6 +42,7 @@ type
     procedure ProcessFile(const fname: string; const enc: TEncoding);
     property OnMessageEvent: TPgMessageEvent read FMessageEvent
       write FMessageEvent;
+    property OnTokenEvent: TPTokenEvent read FTokenEvent write FTokenEvent;
 
     function ByteShowFile(const fname: string; const enc: TEncoding): TStrings;
   end;
@@ -111,6 +115,12 @@ procedure TPgDriver.DoMessageEvent(const msg: string);
 begin
   if Assigned(FMessageEvent) then
     FMessageEvent(msg);
+end;
+
+procedure TPgDriver.DoTokenEvent(const msg: string);
+begin
+  if Assigned(FTokenEvent) then
+    FTokenEvent(msg);
 end;
 
 procedure TPgDriver.ExamineLine(const no: Integer; const line: string);
@@ -192,10 +202,12 @@ begin
     lxr := TLexer.Create(fname, enc);
     tok := tokman.NewToken;
     lxr.GetNextToken(tok);
+    DoTokenEvent(tok.Text);
     while tok.TokenType <> ttEOF do
     begin
       tok := tokman.NewToken;
       lxr.GetNextToken(tok);
+      DoTokenEvent(tok.Text);
     end;
   finally
     if Assigned(lxr) then

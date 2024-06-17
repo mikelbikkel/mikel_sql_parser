@@ -33,10 +33,12 @@ type
     actOpen: TAction;
     memoFile: TMemo;
     memoBin: TMemo;
+    memoToken: TMemo;
     procedure actOpenExecute(Sender: TObject);
     procedure FormCreate(Sender: TObject);
 
     procedure HandleDriverMsg(const msg: string);
+    procedure HandleToken(const msg: string);
   private
     function getFileEncoding: TEncoding;
     // procedure PrintBytes(const fname: string; const enc: TEncoding);
@@ -65,6 +67,7 @@ begin
   begin
     memoBin.Clear;
     memoFile.Clear;
+    memoToken.Clear;
     fname := dlgOpenText.FileName;
     eb := getFileEncoding;
     var
@@ -76,6 +79,7 @@ begin
     memoBin.Lines := lst;
     lst.Free;
 
+    drvr.OnTokenEvent := HandleToken;
     drvr.ProcessFile2(fname, eb);
 
     drvr.Free;
@@ -109,6 +113,11 @@ end;
 procedure TfrmMain.HandleDriverMsg(const msg: string);
 begin
   memoFile.Lines.Add(msg);
+end;
+
+procedure TfrmMain.HandleToken(const msg: string);
+begin
+  memoToken.Lines.Add(msg);
 end;
 
 {

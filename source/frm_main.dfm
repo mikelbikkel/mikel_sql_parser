@@ -13,7 +13,7 @@ object frmMain: TfrmMain
   OnCreate = FormCreate
   TextHeight = 15
   object btnOpenFile: TButton
-    Left = 448
+    Left = 526
     Top = 336
     Width = 75
     Height = 25
@@ -40,6 +40,16 @@ object frmMain: TfrmMain
     ScrollBars = ssBoth
     TabOrder = 2
   end
+  object memoToken: TMemo
+    Left = 264
+    Top = 136
+    Width = 241
+    Height = 289
+    Lines.Strings = (
+      'memoToken')
+    ScrollBars = ssBoth
+    TabOrder = 3
+  end
   object dlgOpenText: TOpenTextFileDialog
     Filter = 'Text files|*.txt|SQL files|*.sql|All files|*.*'
     Encodings.Strings = (
@@ -47,11 +57,11 @@ object frmMain: TfrmMain
       'ANSI'
       'UTF-7'
       'UTF-8')
-    Left = 488
+    Left = 576
     Top = 152
   end
   object lstMain: TActionList
-    Left = 488
+    Left = 576
     Top = 248
     object actOpen: TAction
       Caption = 'Open File'
