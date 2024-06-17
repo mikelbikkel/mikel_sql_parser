@@ -33,7 +33,7 @@ type
     function ByteLine(const no: Integer; const line: string): string;
   public
     constructor Create;
-    destructor Destroy;
+    destructor Destroy; override;
 
     procedure ProcessFile2(const fname: string; const enc: TEncoding);
     procedure ProcessFile(const fname: string; const enc: TEncoding);
@@ -104,6 +104,7 @@ end;
 destructor TPgDriver.Destroy;
 begin
   // nop
+  inherited;
 end;
 
 procedure TPgDriver.DoMessageEvent(const msg: string);
@@ -126,20 +127,20 @@ begin
   for var c: Char in ar do
   begin
     Inc(col);
-    if IsWhiteSpace(c) then
+    if c.IsWhiteSpace then
       // Zs category, or a tab ( U+0009 ), carriage return ( U+000D ), newline ( U+000A ), or form feed ( U+000C )
       s := Format(fmt, [no, col, c, 'whitespace'])
-    else if IsLetter(c) then
+    else if c.IsLetter then
       s := Format(fmt, [no, col, c, 'letter'])
-    else if IsNumber(c) then
+    else if c.IsNumber then
       s := Format(fmt, [no, col, c, 'number'])
-    else if IsDigit(c) then
+    else if c.IsDigit then
       s := Format(fmt, [no, col, c, 'digit'])
-    else if IsPunctuation(c) then
+    else if c.IsPunctuation then
       s := Format(fmt, [no, col, c, 'punctuation'])
-    else if IsSymbol(c) then
+    else if c.IsSymbol then
       s := Format(fmt, [no, col, c, 'symbol'])
-    else if IsSeparator(c) then // Zs space, Zl line, Zp paragraph
+    else if c.IsSeparator then // Zs space, Zl line, Zp paragraph
       s := Format(fmt, [no, col, c, 'separator'])
     else
       s := Format(fmt, [no, col, c, 'not classified']);
@@ -182,22 +183,29 @@ procedure TPgDriver.ProcessFile2(const fname: string; const enc: TEncoding);
 var
   lxr: TLexer;
   tok: TToken;
+  tokman: TTokenManager;
 begin
   lxr := nil;
-  tok := nil;
+  tokman := nil;
   try
+    tokman := TTokenManager.Create;
     lxr := TLexer.Create(fname, enc);
-    tok := lxr.GetNextToken;
+    tok := tokman.NewToken;
+    lxr.GetNextToken(tok);
     while tok.TokenType <> ttEOF do
     begin
-      tok.Free;
-      tok := lxr.GetNextToken;
+      tok := tokman.NewToken;
+      lxr.GetNextToken(tok);
     end;
-    tok.Free;
   finally
     if Assigned(lxr) then
       lxr.Free;
+    if Assigned(tokman) then
+    begin
+      tokman.Free;
+    end;
   end;
+
 end;
 
 end.

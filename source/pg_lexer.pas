@@ -19,10 +19,10 @@ unit pg_lexer;
 
 interface
 
-uses System.SysUtils, System.Classes;
+uses System.SysUtils, System.Classes, System.Generics.Collections;
 
 type
-  TTokenType = (ttEOF, ttEOL);
+  TTokenType = (ttUnkown, ttEOF, ttEOL, ttID);
 
   TToken = class
   private
@@ -32,7 +32,7 @@ type
     FType: TTokenType;
 
   public
-    constructor Create(const ln, col: integer);
+    constructor Create;
     property Line: integer read FLine;
     property Column: integer read FColumn;
     property Text: string read FText;
@@ -41,33 +41,29 @@ type
     procedure Add(const c: Char);
   end;
 
-  LexerState = (lsStart, lsCollect);
+  TTokenManager = class
+  strict private
+    FTokens: tObjectList<TToken>;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function NewToken: TToken;
+  end;
 
-  // TODO: var???
-  TTokenEvent = procedure( { var } lex: TToken) of object;
+  TLexerState = (lsStart, lsCollect);
 
   TLexer = class
   private
-    FToken: TToken;
-    FTokenFound: TTokenEvent;
     FReader: TStreamReader;
     FLine: integer;
     FColumn: integer;
-    FState: LexerState;
-    function StartProcessChar(const c: Char): LexerState;
-    function CollectProcessChar(const c: Char): LexerState;
-    // Virtual and dynamic methods can be overridden in descendent classes.
-    procedure DoTokenFound;
 
   public
     constructor Create(const fname: string; const enc: TEncoding);
     destructor Destroy; override;
-    procedure NextChar(const c: Char);
-    procedure NextLine;
 
-    function GetNextToken(): TToken;
+    procedure GetNextToken(var tok: TToken);
 
-    property OnTokenFound: TTokenEvent read FTokenFound write FTokenFound;
   end;
 
 implementation
@@ -83,56 +79,23 @@ begin
   FText := FText + c;
 end;
 
-constructor TToken.Create(const ln, col: integer);
+constructor TToken.Create;
 begin
-  FLine := ln;
-  FColumn := col;
+  FLine := 0;
+  FColumn := 0;
 end;
 {$ENDREGION}
 { ----------------------------------------------------------------------------- }
 { TLexer }
 {$REGION TLexer }
 
+// TODO: should lexer manage the stream resource?
+// Or add stream as a param to GetNextToken?
 constructor TLexer.Create(const fname: string; const enc: TEncoding);
 begin
   FReader := TStreamReader.Create(fname, enc);
   FLine := 1;
   FColumn := 0;
-  FState := lsStart;
-end;
-
-procedure TLexer.NextChar(const c: Char);
-begin
-  Inc(FColumn);
-  case FState of
-    lsStart:
-      FState := StartProcessChar(c);
-    lsCollect:
-      FState := CollectProcessChar(c);
-  else
-    raise Exception.Create('unknown state');
-  end;
-end;
-
-procedure TLexer.NextLine;
-begin
-  // TODO: return lexeme if collecting. Reset state to Start-state.
-  Inc(FLine);
-  FColumn := 1;
-end;
-
-function TLexer.StartProcessChar(const c: Char): LexerState;
-begin
-  if FState <> lsStart then
-    raise Exception.Create('Not in state: Start');
-
-  if IsWhiteSpace(c) then
-    Exit(lsStart); // no-op
-
-  // if IsLetter(c) then
-  FToken := TToken.Create(FLine, FColumn);
-  FToken.Add(c);
-  Result := lsCollect;
 end;
 
 destructor TLexer.Destroy;
@@ -147,20 +110,15 @@ begin
   inherited;
 end;
 
-procedure TLexer.DoTokenFound;
-begin
-  if Assigned(FTokenFound) then
-    FTokenFound(FToken);
-end;
-
-function TLexer.GetNextToken: TToken;
+// TODO: Peek and Read...
+procedure TLexer.GetNextToken(var tok: TToken);
 var
   i: integer;
   iNext: integer;
   c: Char;
-  t: TToken;
+  state: TLexerState;
 begin
-
+  state := lsStart;
   while FReader.Peek >= 0 do
   begin
     i := FReader.Read;
@@ -168,40 +126,73 @@ begin
     Inc(FColumn);
     if (i = $000D) or (i = $000A) or (i = $02AA) then
     begin
-      // Handle EOL.
+      // Handle EOL. CRLF, CR, LF and LS.
       // $02AA is Unicode LS (LineSeparator), code point: U+02AA
-      Result := TToken.Create(FLine, FColumn);
-      Result.FType := ttEOL;
+      tok.FLine := FLine;
+      tok.FColumn := FColumn;
+      tok.FType := ttEOL;
       Inc(FLine);
       FColumn := 0;
       iNext := FReader.Peek;
       if iNext = $000A then
         FReader.Read;
-      Exit(Result);
+      Exit;
+    end
+    else if i = $000C then
+      // Ignore form feed.
+    else if c.IsWhiteSpace then
+    begin
+      // Zs category, or a tab ( U+0009 ), CR, LF or FF ( U+000C )
+      if state = lsCollect then
+        Exit;
+    end
+    else if c.IsLetter then
+    begin
+      if state = lsStart then
+      begin
+        tok.FLine := FLine;
+        tok.FColumn := FColumn;
+        tok.FType := ttID;
+        state := lsCollect;
+      end;
+      tok.Add(c);
     end;
-
   end;
 
-  Result := TToken.Create(FLine, FColumn);
-  Result.FType := ttEOF;
+  if state = lsStart then
+  begin
+    tok.FLine := FLine;
+    tok.FColumn := FColumn;
+    tok.FType := ttEOF;
+  end;
 end;
 
-function TLexer.CollectProcessChar(const c: Char): LexerState;
+{$ENDREGION}
+{ ----------------------------------------------------------------------------- }
+{ TTokenManager }
+{$REGION TTokenManager }
+
+constructor TTokenManager.Create;
 begin
-  if FState <> lsCollect then
-    raise Exception.Create('Not in state: Collect');
-
-  if IsWhiteSpace(c) then
-  begin // Signal we found a lexeme and return to start state.
-    DoTokenFound;
-    Exit(lsStart);
-  end; // ;
-
-  // Add character to the lexeme and continue if IsLetter(c) then
-  FToken.Add(c);
-  Result := lsCollect;
+  FTokens := tObjectList<TToken>.Create;
 end;
 
+destructor TTokenManager.Destroy;
+begin
+  if Assigned(FTokens) then
+  begin
+    FTokens.Clear;
+    FTokens.Free;
+    FTokens := nil;
+  end;
+  inherited;
+end;
+
+function TTokenManager.NewToken: TToken;
+begin
+  Result := TToken.Create;
+  FTokens.Add(Result);
+end;
 {$ENDREGION}
 
 end.
