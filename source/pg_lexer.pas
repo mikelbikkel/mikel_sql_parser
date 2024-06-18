@@ -24,6 +24,10 @@ uses System.SysUtils, System.Classes, System.Generics.Collections;
 type
   TTokenType = (ttUnkown, ttEOF, ttEOL, ttID, ttNumber);
 
+  TTokenTypeHelper = record helper for TTokenType
+    function GetName: string;
+  end;
+
   TToken = class
   private
     FLine: integer;
@@ -39,7 +43,7 @@ type
     property TokenType: TTokenType read FType;
 
     procedure Add(const c: Char);
-    // TODO: ToString
+    function ToString: string; override;
   end;
 
   TTokenManager = class
@@ -85,6 +89,14 @@ begin
   FLine := 0;
   FColumn := 0;
 end;
+
+function TToken.ToString: string;
+const
+  fmt: string = '[%d, %d] - %s - <%s>';
+begin
+  Result := Format(fmt, [FLine, FColumn, FType.GetName, FText]);
+end;
+
 {$ENDREGION}
 { ----------------------------------------------------------------------------- }
 { TLexer }
@@ -130,12 +142,14 @@ begin
       begin
         Exit;
       end;
+      Inc(FColumn);
       FReader.Read;
       // Handle EOL. CRLF, CR, LF and LS.
       // $02AA is Unicode LS (LineSeparator), code point: U+02AA
       tok.FLine := FLine;
       tok.FColumn := FColumn;
       tok.FType := ttEOL;
+      tok.FText := 'newline';
       Inc(FLine);
       FColumn := 0;
       iNext := FReader.Peek;
@@ -150,6 +164,7 @@ begin
       // Zs category, or a tab ( U+0009 ), CR, LF or FF ( U+000C )
       if state = lsCollect then
         Exit;
+      Inc(FColumn);
       FReader.Read;
     end
     else if c.IsLetter then
@@ -164,6 +179,7 @@ begin
       if state = lsCollect then
         if tok.FType = ttID then
         begin
+          Inc(FColumn);
           FReader.Read;
           tok.Add(c);
         end
@@ -182,6 +198,7 @@ begin
       if state = lsCollect then
         if tok.FType = ttNumber then
         begin
+          Inc(FColumn);
           FReader.Read;
           tok.Add(c);
         end
@@ -192,6 +209,7 @@ begin
     begin
       if state = lsCollect then
         Exit;
+      Inc(FColumn);
       FReader.Read;
       tok.FLine := FLine;
       tok.FColumn := FColumn;
@@ -236,5 +254,24 @@ begin
   FTokens.Add(Result);
 end;
 {$ENDREGION}
+{ TTokenTypeHelper }
+
+function TTokenTypeHelper.GetName: string;
+begin
+  case self of
+    ttUnkown:
+      Result := 'ttUnkown';
+    ttEOF:
+      Result := 'ttEOF';
+    ttEOL:
+      Result := 'ttEOL';
+    ttID:
+      Result := 'ttID';
+    ttNumber:
+      Result := 'ttNumber';
+  else
+    Result := '?';
+  end;
+end;
 
 end.

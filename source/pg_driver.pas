@@ -127,13 +127,13 @@ procedure TPgDriver.ExamineLine(const no: Integer; const line: string);
 var
   ar: TArray<Char>;
   col: Integer;
-  fmt: string;
   s: string;
   bt: TBytes;
+const
+  fmt: string = '[%d, %d] <%s> - %s';
 begin
   ar := line.ToCharArray();
   col := 0;
-  fmt := '[%d, %d] <%s> - %s';
   for var c: Char in ar do
   begin
     Inc(col);
@@ -194,28 +194,27 @@ var
   lxr: TLexer;
   tok: TToken;
   tokman: TTokenManager;
+  function TokTok: TToken;
+  begin
+    Result := tokman.NewToken;
+    lxr.GetNextToken(Result);
+    DoTokenEvent(Result.ToString);
+  end;
+
 begin
   lxr := nil;
   tokman := nil;
   try
     tokman := TTokenManager.Create;
     lxr := TLexer.Create(fname, enc);
-    tok := tokman.NewToken;
-    lxr.GetNextToken(tok);
-    DoTokenEvent(tok.Text);
+    tok := TokTok;
     while tok.TokenType <> ttEOF do
-    begin
-      tok := tokman.NewToken;
-      lxr.GetNextToken(tok);
-      DoTokenEvent(tok.Text);
-    end;
+      tok := TokTok;
   finally
     if Assigned(lxr) then
       lxr.Free;
     if Assigned(tokman) then
-    begin
       tokman.Free;
-    end;
   end;
 
 end;
