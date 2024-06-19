@@ -22,7 +22,7 @@ interface
 uses System.SysUtils, System.Classes, System.Generics.Collections;
 
 type
-  TTokenType = (ttUnkown, ttEOF, ttEOL, ttID, ttNumber);
+  TTokenType = (ttUnkown, ttEOF, ttEOL, ttID, ttNumber, ttOperator);
 
   TTokenTypeHelper = record helper for TTokenType
     function GetName: string;
@@ -55,7 +55,7 @@ type
     function NewToken: TToken;
   end;
 
-  TLexerState = (lsStart, lsCollect);
+  TLexerState = (lsStart, lsCollect, lsCommentLine);
 
   TLexer = class
   private
@@ -68,6 +68,7 @@ type
     destructor Destroy; override;
 
     procedure GetNextToken(var tok: TToken);
+    procedure GetNextToken2(var tok: TToken);
 
   end;
 
@@ -227,6 +228,109 @@ begin
   end;
 end;
 
+procedure TLexer.GetNextToken2(var tok: TToken);
+var
+  i: integer;
+  iNext: integer;
+  c: Char;
+  cNext: Char;
+  state: TLexerState;
+begin
+
+  state := lsStart;
+  while FReader.Peek >= 0 do
+  begin
+    i := FReader.Peek;
+    c := Chr(i);
+    begin
+      case state of
+        lsCommentLine: { eat until EOL }
+          if (i = $000D) or (i = $000A) or (i = $02AA) then
+            state := lsStart
+          else
+            FReader.Read;
+        lsStart:
+          begin
+            if (i = $000D) or (i = $000A) or (i = $02AA) then
+            begin // TODO: newline should not return a token.
+              Inc(FColumn);
+              FReader.Read;
+              // Handle EOL. CRLF, CR, LF and LS.
+              // $02AA is Unicode LS (LineSeparator), code point: U+02AA
+              tok.FLine := FLine;
+              tok.FColumn := FColumn;
+              tok.FType := ttEOL;
+              tok.FText := 'newline';
+              Inc(FLine);
+              FColumn := 0;
+              iNext := FReader.Peek;
+              if iNext = $000A then
+                FReader.Read;
+              Exit;
+            end;
+            if (i = $000C) then
+              { ignore form feed };
+            if c.IsWhiteSpace then
+            begin { eat whitespace }
+              Inc(FColumn);
+              FReader.Read;
+            end;
+            if c.IsDigit then
+            begin
+              FReader.Read;
+              Inc(FColumn);
+              tok.FLine := FLine;
+              tok.FColumn := FColumn;
+              tok.FType := ttID;
+              state := lsCollect;
+            end;
+            if c.IsLetter or (c = '_') then
+            begin
+              FReader.Read;
+              Inc(FColumn);
+              tok.FLine := FLine;
+              tok.FColumn := FColumn;
+              tok.FType := ttNumber;
+              state := lsCollect;
+            end;
+            if (c = '-') then
+            begin { this is either a - (minus) or a -- (start of comment until EOL) }
+              FReader.Read;
+              Inc(FColumn);
+              iNext := FReader.Peek;
+              cNext := Chr(iNext);
+              if cNext = '-' then
+              begin
+                FReader.Read;
+                state := lsCommentLine;
+              end
+              else
+              begin
+                tok.FLine := FLine;
+                tok.FColumn := FColumn;
+                tok.FType := ttOperator;
+                Exit;
+              end;
+            end
+          end;
+        lsCollect:
+          if (i = $000D) or (i = $000A) or (i = $02AA) or (i = $000C) or c.IsWhiteSpace
+          then
+            Exit;
+      else
+        raise Exception.Create('lexer state error');
+      end;
+    end;
+
+    if state = lsStart then
+    begin
+      tok.FLine := FLine;
+      tok.FColumn := FColumn;
+      tok.FType := ttEOF;
+    end;
+
+  end;
+end;
 {$ENDREGION}
 { ----------------------------------------------------------------------------- }
 { TTokenManager }
